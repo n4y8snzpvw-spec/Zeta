@@ -1,6 +1,4 @@
 # Zeta
-Ai
-# Zeta
 
 <p align="center">
   <img src="https://img.shields.io/badge/Repository-Zeta-181717?logo=github&logoColor=white" alt="Zeta Repository" />
