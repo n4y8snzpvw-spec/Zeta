@@ -1,12 +1,13 @@
 [project]
 name = "zeta"
-version = "0.2.0"
+version = "0.3.0"
 description = "A small, OpenAI-compatible AI chat app"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.115,<1.0",
     "uvicorn[standard]>=0.30,<1.0",
+    "psycopg[binary]>=3.2,<4.0",
 ]
 
 [build-system]
