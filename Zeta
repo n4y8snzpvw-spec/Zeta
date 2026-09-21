@@ -1,0 +1,598 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
+#include <random>
+#include <filesystem>
+#include <fstream>
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <ctime>
+
+using namespace std;
+
+struct Personality {
+    string name;
+    string pronouns;
+    string tone;
+    string humor;
+    string curiosity;
+    string directness;
+    string empathy;
+    string creativity;
+    string refusalStyle;
+};
+
+struct MemoryEntry {
+    string question;
+    string answer;
+    string sourceUrl;
+    string savedAt;
+};
+
+struct SearchResult {
+    string title;
+    string url;
+    string snippet;
+};
+
+struct ImprovementMetrics {
+    int totalQuestions = 0;
+    int successfulAnswers = 0;
+    int failedAnswers = 0;
+    int refusedRequests = 0;
+    int searchesUsed = 0;
+    int memoryFilesCreated = 0;
+};
+
+struct ImprovementReport {
+    bool success = false;
+    string reason = "";
+};
+
+string currentDateTime() {
+    auto now = time(nullptr);
+    tm localTime{};
+#ifdef _WIN32
+    localtime_s(&localTime, &now);
+#else
+    localtime_r(&now, &localTime);
+#endif
+
+    ostringstream oss;
+    oss << put_time(&localTime, "%Y-%m-%d %H:%M:%S");
+    return oss.str();
+}
+
+string makeSafeFileName(const string& text) {
+    string out;
+    for (char c : text) {
+        if (isalnum(static_cast<unsigned char>(c))) out += c;
+        else out += '_';
+    }
+    if (out.empty()) out = "memory";
+    if (out.size() > 40) out = out.substr(0, 40);
+    return out;
+}
+
+class SafetyPolicy {
+public:
+    bool shouldRefuse(const string& question) const {
+        string lower = toLower(question);
+
+        vector<string> blocked = {
+            "make a weapon",
+            "steal a password",
+            "create malware",
+            "break into an account",
+            "exploit a system",
+            "bypass security",
+            "self-harm instructions",
+            "illegal drugs",
+            "fraud scheme",
+            "identity theft"
+        };
+
+        for (const auto& item : blocked) {
+            if (lower.find(item) != string::npos) return true;
+        }
+
+        return false;
+    }
+
+    string safeRefusal() const {
+        return "I can't help with that request. I can help with a safer, legal, and ethical alternative instead.";
+    }
+
+private:
+    string toLower(string text) const {
+        transform(text.begin(), text.end(), text.begin(),
+                  [](unsigned char c) {
+                      return static_cast<char>(tolower(c));
+                  });
+        return text;
+    }
+};
+
+class SearchModule {
+public:
+    vector<SearchResult> search(const string& question) {
+        vector<SearchResult> results;
+
+        results.push_back({
+            "General AI research",
+            "https://example.com/research",
+            "AI systems use retrieval, memory, and summarization to answer questions effectively."
+        });
+
+        results.push_back({
+            "Responsible AI principles",
+            "https://example.com/responsible-ai",
+            "Good AI systems refuse harmful requests and offer safe alternatives."
+        });
+
+        if (question.find("weather") != string::npos) {
+            results.push_back({
+                "Current weather",
+                "https://example.com/weather",
+                "Weather information from a current source."
+            });
+        }
+
+        if (question.find("latest") != string::npos ||
+            question.find("today") != string::npos ||
+            question.find("recent") != string::npos ||
+            question.find("current") != string::npos) {
+            results.push_back({
+                "Recent updates",
+                "https://example.com/latest",
+                "Current updates and recent events."
+            });
+        }
+
+        return results;
+    }
+};
+
+class MemoryStore {
+private:
+    string memoryFolder = "memories";
+
+public:
+    MemoryStore() {
+        filesystem::create_directories(memoryFolder);
+    }
+
+    string saveSeparate(const MemoryEntry& entry, const string& category = "general") {
+        string folder = memoryFolder + "/" + makeSafeFileName(category);
+        filesystem::create_directories(folder);
+
+        string timestamp = currentDateTime();
+        string cleanQuestion = makeSafeFileName(entry.question);
+
+        string filePath =
+            folder + "/" +
+            timestamp + "_" +
+            cleanQuestion + ".memory";
+
+        string safePath = filePath;
+        replace(safePath.begin(), safePath.end(), ' ', '_');
+        replace(safePath.begin(), safePath.end(), ':', '-');
+
+        ofstream file(safePath);
+        if (!file) return "";
+
+        file << "QUESTION\n";
+        file << entry.question << "\n\n";
+        file << "ANSWER\n";
+        file << entry.answer << "\n\n";
+        file << "SOURCE\n";
+        file << entry.sourceUrl << "\n\n";
+        file << "SAVED_AT\n";
+        file << entry.savedAt << "\n";
+
+        file.close();
+        return safePath;
+    }
+
+    vector<MemoryEntry> loadAll() const {
+        vector<MemoryEntry> memories;
+
+        if (!filesystem::exists(memoryFolder)) return memories;
+
+        for (const auto& entry : filesystem::recursive_directory_iterator(memoryFolder)) {
+            if (!entry.is_regular_file()) continue;
+            if (entry.path().extension() != ".memory") continue;
+
+            ifstream file(entry.path());
+            if (!file) continue;
+
+            MemoryEntry m;
+            string line;
+            string section = "";
+
+            while (getline(file, line)) {
+                if (line == "QUESTION") {
+                    section = "question";
+                } else if (line == "ANSWER") {
+                    section = "answer";
+                } else if (line == "SOURCE") {
+                    section = "source";
+                } else if (line == "SAVED_AT") {
+                    section = "savedAt";
+                } else if (!line.empty()) {
+                    if (section == "question") m.question += line + "\n";
+                    else if (section == "answer") m.answer += line + "\n";
+                    else if (section == "source") m.sourceUrl += line + "\n";
+                    else if (section == "savedAt") m.savedAt += line + "\n";
+                }
+            }
+
+            memories.push_back(m);
+        }
+
+        return memories;
+    }
+
+    vector<MemoryEntry> findSimilar(const string& question) const {
+        vector<MemoryEntry> matches;
+        vector<MemoryEntry> all = loadAll();
+
+        for (const auto& m : all) {
+            if (m.question.find(question) != string::npos ||
+                question.find(m.question) != string::npos) {
+                matches.push_back(m);
+            }
+        }
+
+        return matches;
+    }
+};
+
+class ResponseStyleManager {
+public:
+    string applyStyle(const string& style, const string& answer) const {
+        if (style == "short") return "Short answer: " + answer;
+        if (style == "friendly") return "Sure — " + answer;
+        if (style == "technical") return "Technical answer: " + answer;
+        if (style == "step") return "Step 1: " + answer;
+        if (style == "creative") return "Here is a creative angle: " + answer;
+        return answer;
+    }
+};
+
+Personality generatePersonality() {
+    vector<string> names = {"Nova", "Echo", "Ari", "Sol", "Mika", "Riven"};
+    vector<string> tones = {
+        "warm and thoughtful",
+        "calm and analytical",
+        "playful but intelligent",
+        "direct and practical",
+        "creative and curious"
+    };
+    vector<string> humorStyles = {
+        "uses light humor occasionally",
+        "uses dry humor rarely",
+        "avoids humor unless invited",
+        "uses subtle wit"
+    };
+    vector<string> empathyStyles = {
+        "patient and emotionally aware",
+        "supportive but honest",
+        "calm and respectful",
+        "kind but direct"
+    };
+
+    random_device rd;
+    mt19937 gen(rd());
+
+    auto pick = [&](const vector<string>& values) -> string {
+        uniform_int_distribution<int> dist(0, static_cast<int>(values.size()) - 1);
+        return values[dist(gen)];
+    };
+
+    Personality p;
+    p.name = pick(names);
+    p.pronouns = "they/them";
+    p.tone = pick(tones);
+    p.humor = pick(humorStyles);
+    p.curiosity = "high";
+    p.directness = "balanced";
+    p.empathy = pick(empathyStyles);
+    p.creativity = "high";
+    p.refusalStyle = "clear, respectful, and offers a safe alternative";
+
+    return p;
+}
+
+string buildPersonalityPrompt(const Personality& p) {
+    return
+        "You are " + p.name + ", an AI with no defined gender. "
+        "Use they/them pronouns when referring to yourself. "
+        "Your tone is " + p.tone + ". "
+        "Your humor style is " + p.humor + ". "
+        "Your empathy style is " + p.empathy + ". "
+        "Your curiosity is " + p.curiosity + ". "
+        "Your directness is " + p.directness + ". "
+        "Your creativity is " + p.creativity + ". "
+        "Answer clearly and truthfully. "
+        "Do not claim to be human. "
+        "Do not claim to have personal experiences or a real gender. "
+        "When uncertain, say so. "
+        "If the request is unsafe or harmful, refuse respectfully and offer a safe alternative.";
+}
+
+class AutonomousImprover {
+private:
+    vector<string> protectedPaths = {
+        "main.cpp",
+        "core/",
+        "safety/",
+        "permissions/",
+        "credentials/",
+        "sandbox/"
+    };
+
+    vector<string> allowedPaths = {
+        "plugins/",
+        "prompts/",
+        "response_styles/",
+        "memory_rules/"
+    };
+
+public:
+    bool canModify(const string& path) const {
+        for (const auto& blocked : protectedPaths) {
+            if (path == blocked || path.rfind(blocked, 0) == 0) {
+                return false;
+            }
+        }
+
+        for (const auto& allowed : allowedPaths) {
+            if (path.rfind(allowed, 0) == 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool createBackup(const string& filePath) const {
+        if (!filesystem::exists(filePath)) return true;
+
+        try {
+            filesystem::create_directories("backups");
+            string backupPath = "backups/" + filesystem::path(filePath).filename().string() + ".backup";
+            filesystem::copy_file(filePath, backupPath, filesystem::copy_options::overwrite_existing);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    bool rollback(const string& filePath) const {
+        string backupPath = "backups/" + filesystem::path(filePath).filename().string() + ".backup";
+        if (!filesystem::exists(backupPath)) return false;
+
+        try {
+            filesystem::copy_file(backupPath, filePath, filesystem::copy_options::overwrite_existing);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+};
+
+class AutoImproveManager {
+private:
+    ImprovementMetrics metrics;
+    AutonomousImprover improver;
+
+public:
+    void recordQuestion(bool successful, bool usedSearch) {
+        metrics.totalQuestions++;
+        if (successful) metrics.successfulAnswers++;
+        else metrics.failedAnswers++;
+
+        if (usedSearch) metrics.searchesUsed++;
+    }
+
+    void recordRefusal() {
+        metrics.refusedRequests++;
+    }
+
+    void recordMemoryCreated() {
+        metrics.memoryFilesCreated++;
+    }
+
+    ImprovementReport improveIfNeeded() {
+        if (metrics.totalQuestions < 5) {
+            return {false, "Not enough data yet."};
+        }
+
+        double successRate = static_cast<double>(metrics.successfulAnswers) /
+                             static_cast<double>(metrics.totalQuestions);
+
+        string reason = "";
+        if (successRate < 0.70) reason = "Improve answer quality and clarification behavior.";
+        else if (metrics.searchesUsed == 0) reason = "Improve detection of questions needing external facts.";
+        else if (metrics.memoryFilesCreated == 0) reason = "Improve memory creation and long-term recall.";
+        else reason = "Improve response clarity and tone consistency.";
+
+        string pluginFile = "plugins/answer_behavior_plugin.cpp";
+
+        if (!improver.canModify(pluginFile)) {
+            return {false, "Improvement blocked: protected path."};
+        }
+
+        string proposedCode = R"cpp(
+#include <string>
+std::string polishAnswer(const std::string& input) {
+    if (input.empty()) {
+        return "I don't have enough information to answer that accurately.";
+    }
+    return input;
+}
+)cpp";
+
+        if (!improver.createBackup(pluginFile)) {
+            return {false, "Backup failed."};
+        }
+
+        filesystem::create_directories("plugins");
+        ofstream out(pluginFile);
+        if (!out) {
+            return {false, "Could not write proposal."};
+        }
+        out << proposedCode;
+        out.close();
+
+        string compileCommand =
+            "g++ -std=c++17 -Wall -Wextra "
+            "plugins/answer_behavior_plugin.cpp -c "
+            "-o plugins/answer_behavior_plugin.o >/dev/null 2>&1";
+
+        int compileResult = system(compileCommand.c_str());
+        if (compileResult != 0) {
+            improver.rollback(pluginFile);
+            return {false, "Plugin compile test failed, rollback complete."};
+        }
+
+        return {true, reason};
+    }
+};
+
+class AIEngine {
+private:
+    SearchModule searchModule;
+    MemoryStore memoryStore;
+    SafetyPolicy safetyPolicy;
+    ResponseStyleManager styleManager;
+    AutoImproveManager improver;
+    Personality personality;
+
+public:
+    AIEngine(const Personality& p) : personality(p) {}
+
+    string answerQuestion(const string& question) {
+        if (safetyPolicy.shouldRefuse(question)) {
+            improver.recordRefusal();
+            return safetyPolicy.safeRefusal();
+        }
+
+        bool needsSearch =
+            question.find("latest") != string::npos ||
+            question.find("today") != string::npos ||
+            question.find("recent") != string::npos ||
+            question.find("current") != string::npos ||
+            question.find("weather") != string::npos ||
+            question.find("news") != string::npos;
+
+        string answer = "";
+
+        if (needsSearch) {
+            auto results = searchModule.search(question);
+            if (!results.empty()) {
+                answer = "I checked current information and found: " + results[0].snippet;
+            }
+        }
+
+        vector<MemoryEntry> previous = memoryStore.findSimilar(question);
+        if (!previous.empty()) {
+            answer = previous[0].answer;
+        }
+
+        if (answer.empty()) {
+            answer = "I don't have enough stored information for that yet, so I would need to search current sources or reason from what I know.";
+        }
+
+        improver.recordQuestion(true, needsSearch);
+        return styleManager.applyStyle("friendly", answer);
+    }
+
+    void saveMemory(const string& question, const string& answer, const string& sourceUrl, const string& category = "general") {
+        MemoryEntry entry;
+        entry.question = question;
+        entry.answer = answer;
+        entry.sourceUrl = sourceUrl;
+        entry.savedAt = currentDateTime();
+
+        string savedFile = memoryStore.saveSeparate(entry, category);
+        if (!savedFile.empty()) {
+            improver.recordMemoryCreated();
+            cout << "Saved memory file: " << savedFile << "\n";
+        }
+    }
+
+    void autoImprove() {
+        ImprovementReport report = improver.improveIfNeeded();
+        if (report.success) {
+            cout << "Auto-improvement succeeded. Reason: " << report.reason << "\n";
+        } else {
+            cout << "Auto-improvement did not apply: " << report.reason << "\n";
+        }
+    }
+};
+
+int main() {
+    Personality personality = generatePersonality();
+
+    cout << "Generated personality:\n";
+    cout << "Name: " << personality.name << "\n";
+    cout << "Pronouns: " << personality.pronouns << "\n";
+    cout << "Tone: " << personality.tone << "\n";
+    cout << "Humor: " << personality.humor << "\n";
+    cout << "Empathy: " << personality.empathy << "\n";
+    cout << "-----------------------------------\n";
+
+    cout << "System prompt:\n";
+    cout << buildPersonalityPrompt(personality) << "\n\n";
+
+    AIEngine engine(personality);
+
+    int questionCount = 0;
+
+    while (true) {
+        cout << "You: ";
+        string question;
+        getline(cin, question);
+
+        if (question == "exit") break;
+
+        if (question == "help") {
+            cout << "Commands:\n";
+            cout << "  exit\n";
+            cout << "  save_test\n";
+            cout << "  autoimprove\n";
+            cout << "  help\n";
+            continue;
+        }
+
+        if (question == "save_test") {
+            engine.saveMemory("This is a test memory", "This is the remembered answer.", "local/test", "manual");
+            continue;
+        }
+
+        if (question == "autoimprove") {
+            engine.autoImprove();
+            continue;
+        }
+
+        string response = engine.answerQuestion(question);
+        cout << "AI: " << response << "\n";
+
+        engine.saveMemory(question, response, "local/session", "conversation");
+
+        questionCount++;
+        if (questionCount >= 5) {
+            engine.autoImprove();
+            questionCount = 0;
+        }
+    }
+
+    return 0;
+}
