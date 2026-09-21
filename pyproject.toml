@@ -1,10 +1,13 @@
 [project]
 name = "zeta"
-version = "0.1.0"
-description = "Zeta AI starter project"
+version = "0.2.0"
+description = "A small, OpenAI-compatible AI chat app"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.30,<1.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -15,3 +18,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+zeta = ["static/*"]

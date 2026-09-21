@@ -2,18 +2,15 @@ from __future__ import annotations
 
 import argparse
 
-
-def generate_response(prompt: str) -> str:
-    """Return a simple AI-style response for the provided prompt."""
-    cleaned = prompt.strip() or "hello"
-    return f"Zeta response: I received '{cleaned}'. Ready to help with your next task."
+import uvicorn
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Zeta CLI")
-    parser.add_argument("prompt", nargs="?", default="hello", help="Input text for the assistant")
+    parser = argparse.ArgumentParser(description="Run the Zeta AI chat app")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    print(generate_response(args.prompt))
+    uvicorn.run("zeta.app:app", host=args.host, port=args.port, reload=True)
 
 
 if __name__ == "__main__":
